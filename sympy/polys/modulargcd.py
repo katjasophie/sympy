@@ -1,7 +1,7 @@
 from sympy.ntheory import nextprime
 from sympy.ntheory.modular import crt
 from sympy.polys.galoistools import (
-    gf_gcd, gf_from_dict, gf_gcdex, gf_div, gf_lcm)
+    gf_gcd, gf_from_dict, gf_gcdex, gf_div, gf_lcm, gf_rem)
 from sympy.polys.polyerrors import ModularGCDFailed
 import random
 
@@ -1251,7 +1251,7 @@ def _trunc(f, minpoly, p):
     denseminpoly = minpoly.to_dense()
 
     for monom, coeff in ftrunc.iteritems():
-        densecoeff = gf_div(coeff.to_dense(), denseminpoly, p, dom)[1]
+        densecoeff = gf_rem(coeff.to_dense(), denseminpoly, p, dom)
         ftrunc[monom] = zring.ring.from_dense(densecoeff)
 
     return ring(ftrunc.as_expr()).trunc_ground(p)
@@ -1393,6 +1393,9 @@ def _func_field_modgcd_p(f, g, minpoly, p):
 
 def _integer_rational_reconstruction(coeff, m):
     from sympy import sqrt, QQ
+
+    if coeff < 0:
+        coeff += m
 
     u = (m, 0)
     v = (coeff, 1)

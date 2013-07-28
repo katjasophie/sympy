@@ -721,9 +721,10 @@ class PolyElement(DomainElement, DefaultPrinting, CantSympify, dict):
 
         for monom, coeff in self.iteritems():
             mon = monom[:i] + monom[i+1:]
-            if not poly.has_key(monom):
-                poly[mon] = ring.domain.zero
-            poly[mon] += (gen**monom[i]).mul_ground(coeff)
+            if not poly.has_key(mon):
+                poly[mon] = (gen**monom[i]).mul_ground(coeff)
+            else:
+                poly[mon] += (gen**monom[i]).mul_ground(coeff)
 
         return poly
 
