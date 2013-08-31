@@ -2165,6 +2165,9 @@ class PolyElement(DomainElement, DefaultPrinting, CantSympify, dict):
             raise ValueError("expected at least 1 and at most %s values, got %s" % (f.ring.ngens, len(values)))
 
     def evaluate(f, x, a=None):
+        if not x:
+            return f
+
         if isinstance(x, list) and a is None:
             (X, a), x = x[0], x[1:]
             f = f.evaluate(X, a)

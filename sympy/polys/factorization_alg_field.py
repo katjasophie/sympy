@@ -410,8 +410,6 @@ def _hensel_lift(f, H, LC, A, minpoly, p):
             lc = _trunc(lc.evaluate(evalpoints), minpoly, p).set_ring(Hring)
             H[i] = h.set_ring(Hring) + (lc - h.LC) * x**h.degree()
 
-        print(H)
-
         m = Hring.gens[j] - a
         M = Hring.one
 
@@ -470,14 +468,15 @@ def _test_prime(fA, minpoly, p, domain):
     return True
 
 
-# squarefree f with cont_x1(f) = 1 
+# squarefree f with cont_x0(f) = 1
 def _factor(f):
     ring = f.ring # Q(alpha)[x_0, ..., x_{n-1}]
     ground = ring.domain.domain
     n = ring.ngens
 
     if n == 1:
-        return f.factor_list()
+        lc, factors = f.factor_list()
+        return [lc, [g for g, _ in factors]]
 
     z = Dummy('z')
     qring = ring.clone(symbols=ring.symbols + (z,))
@@ -535,20 +534,19 @@ def _factor(f):
                     xi = zring.gens[i]
                     f_ = f_.compose(xi, x + xi.mul_ground(ci))
 
+                # TODO: check if this is still squarefree
                 lc, factors = _factor(_z_to_alpha(f_, ring))
 
                 for i, ci in zip(xrange(1, n + 1), C):
                     xi = zring.gens[i]
-                    factors = [(g.compose(xi, (xi - x).quo_ground(ci)), exp) for g, exp in factors]
+                    factors = [g.compose(xi, (xi - x).quo_ground(ci)) for g in factors]
 
                 return lc, factors
 
-            print(fA)
-            print(fA.ring)
             omega_, fAfactors = _z_to_alpha(fA, ring.drop(*ring.gens[1:])).factor_list() # factorization in Q(alpha)[x_0]
             if len(fAfactors) == 1:
                 f_ = _z_to_alpha(f_, ring)
-                return [f_.LC, (f_.monic(), 1)]
+                return [f_.LC, [f_.monic()]]
 
 #            fAfactors = [(_alpha_to_z(g, qring.drop(*qring.gens[1:])), exp) for g, exp in fAfactors]
 
@@ -593,8 +591,8 @@ def _factor(f):
 
 
 def _sort(factors, ring):
-    densefactors = _sort_factors([f.to_dense() for f in factors])
-    return [ring.from_dense(f) for f in densefactors]
+    densefactors = _sort_factors([(f.to_dense(), exp) for f, exp in factors])
+    return [(ring.from_dense(f), exp) for f, exp in densefactors]
 
 
 # output of the form (lc, [(poly1, exp1), ...])
@@ -615,12 +613,14 @@ def efactor(f):
         if not cont.is_one:
             lccont, contfactors = efactor(cont)
             lc, factors = efactor(f)
+            contfactors = [(g.set_ring(ring), exp) for g, exp in contfactors]
             return (lccont * lc, _sort(contfactors + factors, ring))
 
         # this is only correct because the content in x_0 is already divided out
         lc, sqflist = f.sqf_list()
+        factors = []
         for g, exp in sqflist:
-            lcg, gfactors = efactor(g)
+            lcg, gfactors = _factor(g)
             lc *= lcg
             factors = factors + [(gi, exp) for gi in gfactors]
 
