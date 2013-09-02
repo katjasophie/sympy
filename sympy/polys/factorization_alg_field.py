@@ -91,9 +91,10 @@ def _distinct_prime_divisors(A, domain):
     return divisors
 
 
-def _denominator(f):
-    domain = f.ring.domain
-    ring = domain.get_ring()
+def _denominator(f, qring):
+    f = _alpha_to_z(f, qring)
+
+    ring = qring.domain.get_ring()
     lcm = ring.lcm
     den = ring.one
 
@@ -112,15 +113,18 @@ def _monic_associate(f, ring):
 
 
 def _leading_coeffs(f, U, gamma, lcfactors, A, D, denoms, divisors):
-    omega = D * gamma
-    ring = U[0][0].ring
-    qring = f.ring.drop(*f.ring.gens[1:-1])
+    ring = f.ring
+    domain = ring.domain
+    symbols = f.ring.symbols
+    qring = ring.clone(symbols=(symbols[0], symbols[-1]), domain=domain.get_field())
 
-    denominators = [_denominator(_alpha_to_z(u, qring)) for u, _ in U]
+    omega = domain(D * gamma.rep[0])
+
+    denominators = [_denominator(u, qring) for u, _ in U]
 
     m = len(denoms)
 
-    gcd = f.ring.domain.gcd
+    gcd = domain.gcd
 
     for i in xrange(m):
         pi = gcd(omega, divisors[i])
@@ -152,12 +156,38 @@ def _leading_coeffs(f, U, gamma, lcfactors, A, D, denoms, divisors):
 
     lcs = []
     for j in xrange(n):
-        lj = ring.mul([lcfactors[i]**e[j][i] for i in xrange(m)])
+        lj = ring.drop(0).mul([lcfactors[i]**e[j][i] for i in xrange(m)])
         lcs.append(lj)
 
-    # TODO: distribute omega to l_{j}s and if needed update f ?
+    zring = qring.clone(domain=domain)
+    U_ = [_monic_associate(u, zring) for u, _ in U]
 
-    return f, lcs
+    if omega == 1:
+        for j in xrange(n):
+            dj = lcs[j].primitive()[1]
+            djA = dj.evaluate(zip(ring.gens[1:-1], A)).drop(0)
+            lcuj = U_[j].LC
+
+            lcs[j] = dj.mul_ground(U_[j].LC // djA)
+    else:
+        for j in xrange(n):
+            dj = lcs[j].primitive()[1]
+            djA = dj.evaluate(zip(dj.ring.gens[:-1], A)).drop(0)
+            lcuj = U_[j].LC
+            d = gcd(djA, lcuj)
+
+            lcs[j] = dj.mul_ground(lcuj // d)
+            U_[j] = U_[j].mul_ground(djA // d)
+            omega *= d // djA
+
+        if omega == 1:
+            return f_, lcs
+        else:
+            lcs = [lc.mul_ground(omega) for lc in lcs]
+            U_ = [u.mul_ground(omega) for u in U_]
+            f_ = f.mul_ground(omega**(n-1))
+
+    return f, lcs, U_
 
 
 def _test_evaluation_points(f, gamma, lcfactors, D, A):
@@ -176,7 +206,7 @@ def _test_evaluation_points(f, gamma, lcfactors, D, A):
     denoms = []
     for l, _ in lcfactors:
         lA = l.evaluate(zip(l.ring.gens, A)) # in Q(alpha)
-        denoms.append(_denominator(_alpha_to_z(lA**(-1), qring)))
+        denoms.append(_denominator(lA**(-1), qring))
 
     divisors = _distinct_prime_divisors(denoms, ring.domain)
 
@@ -366,7 +396,6 @@ def _diophantine(F, c, A, d, minpoly, p):
     return S
 
 
-# was ist mit l_ (= LC(f_)) oder so
 def _hensel_lift(f, H, LC, A, minpoly, p):
     """
     Wang/EEZ: Parallel Hensel lifting algorithm.
@@ -436,7 +465,7 @@ def _hensel_lift(f, H, LC, A, minpoly, p):
     prod = ring.mul(H)
 
     if prod != f:
-        if _trunc(prod, minpoly, p) != _trunc(f, minpoly, p):
+        if _trunc(prod, minpoly, p) != f:
             return None
     else:
         return H
@@ -471,6 +500,7 @@ def _test_prime(fA, minpoly, p, domain):
 # squarefree f with cont_x0(f) = 1
 def _factor(f):
     ring = f.ring # Q(alpha)[x_0, ..., x_{n-1}]
+    lcring = ring.drop(0)
     ground = ring.domain.domain
     n = ring.ngens
 
@@ -480,17 +510,19 @@ def _factor(f):
 
     z = Dummy('z')
     qring = ring.clone(symbols=ring.symbols + (z,))
+    lcqring = qring.drop(0)
+
     zring = qring.clone(domain=ground.get_ring())
 
     minpoly = _minpoly_from_dense(ring.domain.mod, zring.drop(*zring.gens[:-1]))
     f_ = _monic_associate(f, zring)
     D = minpoly.resultant(minpoly.diff(0))
 
-    # heuristic bounds for hensel lift and p-adic lift
-    B = f_.max_norm()
+#    # heuristic bound for p-adic lift
+#    B = f_.max_norm()
 
     lc = zring.dmp_LC(f_)
-    gamma, lcfactors = efactor(_z_to_alpha(lc, ring.drop(0))) # over QQ(alpha)[x_1, ..., x_n]
+    gamma, lcfactors = efactor(_z_to_alpha(lc, lcring)) # over QQ(alpha)[x_1, ..., x_n]
 
     # TODO: check if the computations of D_ and gamma_ are correct
     D_ = zring.domain.one
@@ -498,13 +530,16 @@ def _factor(f):
     lcfactors_ = []
 
     for l, exp in lcfactors:
-        den, l_ = _alpha_to_z(l, qring.drop(0)).clear_denoms() # l_ in QQ[x_1, ..., x_n, z], but coeffs in ZZ
+        den, l_ = _alpha_to_z(l, lcqring).clear_denoms() # l_ in QQ[x_1, ..., x_n, z], but coeffs in ZZ
         cont, l_ = l_.primitive()
         D_ *= den
         gamma_ *= cont
         lcfactors_.append((l_, exp)) # polyomials over QQ, allthough coeffs are in ZZ
 
     f_ = f_.mul_ground(D_)
+
+    b = zring.dmp_zz_mignotte_bound(f_)
+    p = nextprime(b)
 
     N = 0
     history = set([])
@@ -526,7 +561,7 @@ def _factor(f):
                 fA, denoms, divisors = result
 
             if any(denoms.count(denom) > 1 for denom in denoms):
-                # welches Intervall waere gut?
+                # TODO: check interval
                 C = [random.randint(1, 3*(N + 1)) for _ in xrange(n - 1)]
                 x = zring.gens[0]
 
@@ -545,19 +580,14 @@ def _factor(f):
 
             omega_, fAfactors = _z_to_alpha(fA, ring.drop(*ring.gens[1:])).factor_list() # factorization in Q(alpha)[x_0]
             if len(fAfactors) == 1:
-                f_ = _z_to_alpha(f_, ring)
-                return [f_.LC, [f_.monic()]]
+                f = _z_to_alpha(f_, ring)
+                return [f.LC, [f.monic()]]
 
-#            fAfactors = [(_alpha_to_z(g, qring.drop(*qring.gens[1:])), exp) for g, exp in fAfactors]
-
-            # f_ could be updated by _leading_coeffs !?!
-            lcs = _leading_coeffs(f_, fAfactors, gamma_, lcfactors_, A, D, denoms, divisors)
-            if lcs is None:
+            result = _leading_coeffs(f_, fAfactors, gamma_, lcfactors_, A, D, denoms, divisors)
+            if result is None:
                 continue
             else:
-                f_, lcs = lcs
-
-            lcs_ = [_monic_associate(lc, zring.drop(0)) for lc in lcs]
+                f_, lcs, fAfactors_ = result
 
             prod = ring.domain.domain.one
             for lc in lcs_:
@@ -568,15 +598,11 @@ def _factor(f):
 
             f_ = f_.mul_ground(delta)
 
-            # avoid already used unlucky primes?
-            p = nextprime(200)
             while not _test_prime(fA, minpoly, p, zring.domain):
                 p = nextprime(p)
 
-            fAfactors = [_monic_associate(g, zring.drop(*zring.gens[1:-1])) for g, _ in fAfactors]
-
-            # was ist mit l_?
-            pfactors = _hensel_lift(f_, fAfactors, lcs_, A, minpoly, p)
+            # what about l_ ?
+            pfactors = _hensel_lift(f_, fAfactors_, lcs, A, minpoly, p)
             if pfactors is None:
                 continue
 
@@ -602,7 +628,7 @@ def efactor(f):
     assert ring.domain.is_Algebraic
 
     if f.is_ground:
-        return (f, [])
+        return (f[ring.zero_monom], [])
 
     n = ring.ngens
 
