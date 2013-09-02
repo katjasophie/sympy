@@ -590,7 +590,7 @@ def _factor(f):
                 f_, lcs, fAfactors_ = result
 
             prod = ring.domain.domain.one
-            for lc in lcs_:
+            for lc in lcs:
                 prod *= lc.LC
             q = ground(prod, f_.LC)
             delta = ground.numer(q)
