@@ -118,8 +118,7 @@ def _leading_coeffs(f, U, gamma, lcfactors, A, D, denoms, divisors):
     symbols = f.ring.symbols
     qring = ring.clone(symbols=(symbols[0], symbols[-1]), domain=domain.get_field())
 
-#    omega = domain(D * gamma.rep[0])
-    omega = domain(gamma.rep[0])
+    omega = domain(D * gamma.rep[0])
 
     denominators = [_denominator(u, qring) for u, _ in U]
 
@@ -203,7 +202,7 @@ def _test_evaluation_points(f, gamma, lcfactors, D, A):
     if not fA.is_squarefree:
         return None
 
-    omega = gamma # * D
+    omega = gamma * D
     denoms = []
     for l, _ in lcfactors:
         lA = l.evaluate(zip(l.ring.gens, A)) # in Q(alpha)
@@ -539,7 +538,7 @@ def _factor(f):
         lcfactors_.append((l_, exp)) # polyomials over QQ, allthough coeffs are in ZZ
 
     f_ = f_.mul_ground(D_)
-    b = zring.dmp_zz_mignotte_bound(f_)
+    b = zring.dmp_zz_mignotte_bound(f_)*abs(D)
     p = nextprime(b)
 
     N = 0
