@@ -566,7 +566,7 @@ def _test_prime(fA, minpoly, p, domain):
 
 
 # squarefree f with cont_x0(f) = 1
-def _factor(f):
+def _factor(f, save):
     ring = f.ring # Q(alpha)[x_0, ..., x_{n-1}]
     lcring = ring.drop(0)
     uniring = ring.drop(*ring.gens[1:])
@@ -583,7 +583,10 @@ def _factor(f):
 
     minpoly = _minpoly_from_dense(ring.domain.mod, zring.drop(*zring.gens[:-1]))
     f_ = _monic_associate(f, zring)
-    D = minpoly.resultant(minpoly.diff(0))
+    if save is True:
+        D = minpoly.resultant(minpoly.diff(0))
+    else:
+        D = groundring.one
 
     # heuristic bound for p-adic lift
     B = f_.max_norm()
@@ -631,7 +634,7 @@ def _factor(f):
                     xi = gens[i]
                     f_ = f_.compose(xi, x + xi.mul_ground(ci))
 
-                lc, factors = _factor(_z_to_alpha(f_, ring))
+                lc, factors = _factor(_z_to_alpha(f_, ring), save)
                 gens = factors[0].ring.gens
                 x = gens[0]
 
@@ -695,7 +698,7 @@ def _sort(factors, ring):
 
 
 # output of the form (lc, [(poly1, exp1), ...])
-def efactor(f):
+def efactor(f, save=False):
     ring = f.ring
 
     assert ring.domain.is_Algebraic
@@ -720,7 +723,7 @@ def efactor(f):
         factors = []
         for g, exp in sqflist:
             try:
-                lcg, gfactors = _factor(g)
+                lcg, gfactors = _factor(g, save)
             except UnluckyMinimalPolynomial:
                 return ring.dmp_ext_factor(f)
             lc *= lcg
