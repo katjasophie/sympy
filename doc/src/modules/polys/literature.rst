@@ -99,3 +99,6 @@ a theoretical foundation for implementing polynomials manipulation module.
 .. [Javadi09] S. M. M. Javadi and M. Monagan, On factorization of multivariate
     polynomials over algebraic number and function fields, Proceedings of
     ISSAC 2009, pp. 199-206, ACM, 2009.
+
+.. [Trager76] B. M. Trager, Algebraic factoring and rational function
+    integration, Proceedings of SYMSAC 1976, pp. 219-226, ACM, 1976.
